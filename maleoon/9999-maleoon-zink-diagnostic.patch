@@ -1,0 +1,89 @@
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -3464,6 +3464,13 @@
+       return NULL;
+    }
+ 
++   const bool maleoon_zink_diag = !!os_get_option("MALEOON_ZINK_DIAG");
++   const char *maleoon_last_stage = "screen allocation";
++#define MZ_STAGE(stage) do { \
++      maleoon_last_stage = stage; \
++      if (maleoon_zink_diag) fprintf(stderr, "[maleoon-zink] reached: %s\n", stage); \
++   } while (0)
++   MZ_STAGE("screen allocation");
+    struct zink_screen *screen = rzalloc(NULL, struct zink_screen);
+    if (!screen) {
+       if (!config || !config->driver_name_is_inferred)
+@@ -3490,6 +3497,7 @@
+ 
+    u_trace_state_init();
+ 
++   MZ_STAGE("load Vulkan loader");
+    screen->loader_lib = util_dl_open(VK_LIBNAME);
+    if (!screen->loader_lib) {
+       if (!screen->driver_name_is_inferred)
+@@ -3515,6 +3523,7 @@
+       screen->driconf.zink_shader_object_enable = driQueryOptionb(config->options, "zink_shader_object_enable");
+    }
+ 
++   MZ_STAGE("create Vulkan instance");
+    simple_mtx_lock(&instance_lock);
+    if (++instance_refcount == 1) {
+       instance_info.loader_version = zink_get_loader_version(screen);
+@@ -3556,6 +3565,7 @@
+          debug_printf("ZINK: failed to setup debug utils\n");
+    }
+ 
++   MZ_STAGE("select physical device");
+    choose_pdev(screen, dev_major, dev_minor, adapter_luid);
+    if (screen->pdev == VK_NULL_HANDLE) {
+       if (!screen->driver_name_is_inferred)
+@@ -3574,12 +3584,25 @@
+                                               VK_FORMAT_D32_SFLOAT_S8_UINT);
+    screen->have_dynamic_state_vertex_input_binding_stride = true;
+ 
++   MZ_STAGE("query physical device info/features");
+    if (!zink_get_physical_device_info(screen)) {
++      if (maleoon_zink_diag)
++         fprintf(stderr, "[maleoon-zink] device-info query returned false\n");
+       if (!screen->driver_name_is_inferred)
+          debug_printf("ZINK: failed to detect features\n");
+       goto fail;
+    }
+ 
++   if (maleoon_zink_diag)
++      fprintf(stderr, "[maleoon-zink] features: nullDescriptor=%u logicOp=%u maintenance1=%u custom_border_color=%u line_rasterization=%u timeline_ext=%u timeline_core=%u\n",
++              (unsigned)screen->info.rb2_feats.nullDescriptor,
++              (unsigned)screen->info.feats.features.logicOp,
++              (unsigned)screen->info.have_KHR_maintenance1,
++              (unsigned)screen->info.have_EXT_custom_border_color,
++              (unsigned)screen->info.have_EXT_line_rasterization,
++              (unsigned)screen->info.have_KHR_timeline_semaphore,
++              (unsigned)screen->info.feats12.timelineSemaphore);
++   MZ_STAGE("nullDescriptor hard requirement");
+    if (!screen->info.rb2_feats.nullDescriptor) {
+       mesa_loge("Zink requires the nullDescriptor feature of KHR/EXT robustness2.");
+       goto fail;
+@@ -3662,6 +3685,7 @@
+    init_driver_workarounds(screen);
+    disable_features(screen);
+ 
++   MZ_STAGE("create logical device");
+    struct zink_device *zdev = zink_create_logical_device(screen);
+    if (!zdev->dev)
+       goto fail;
+@@ -3918,9 +3942,14 @@
+    screen->frame_marker_emitted = zink_screen_debug_marker_begin(screen, "frame");
+    simple_mtx_unlock(screen->queue_lock);
+ 
++   MZ_STAGE("screen initialized");
++#undef MZ_STAGE
+    return screen;
+ 
+ fail:
++   if (maleoon_zink_diag)
++      fprintf(stderr, "[maleoon-zink] initialization FAILED at/after stage: %s\n", maleoon_last_stage);
++#undef MZ_STAGE
+    zink_destroy_screen(&screen->base);
+    return NULL;
+ }
