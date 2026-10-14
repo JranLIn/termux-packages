@@ -44,5 +44,5 @@ termux_step_pre_configure() {
     echo "ERROR: unexpected Mesa 21.1.8 GLX Meson layout" >&2
     return 1
   fi
-  sed -i 's/^extra_deps_libgl = \[\]$/extra_deps_libgl = [dep_xxf86vm]/' "$glx_meson"
+  sed -i "s/^extra_deps_libgl = \[\]$/extra_deps_libgl = [dependency('xxf86vm')]/" "$glx_meson"
 }
