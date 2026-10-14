@@ -26,4 +26,23 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 termux_step_pre_configure() {
   CPPFLAGS+=" -D__USE_GNU"
   LDFLAGS+=" -landroid-shmem -llog"
+
+  # On Android, Mesa 21.1.x selects DRI platform 'none', so with_dri2
+  # becomes false even though the Gallium Zink DRI driver is enabled.
+  # Enable the EGL DRI2 frontend for the X11/surfaceless use case.
+  local egl_meson="$TERMUX_PKG_SRCDIR/src/egl/meson.build"
+  if ! grep -qx 'if with_dri2' "$egl_meson"; then
+    echo "ERROR: unexpected Mesa 21.1.8 EGL Meson layout" >&2
+    return 1
+  fi
+  sed -i 's/^if with_dri2$/if with_dri2 or (with_dri and with_platform_x11)/' "$egl_meson"
+
+  # The GLX code uses XF86VidModeQueryVersion/GetModeLine but its final
+  # libGL link omits libXxf86vm when building with the Android toolchain.
+  local glx_meson="$TERMUX_PKG_SRCDIR/src/glx/meson.build"
+  if ! grep -qx 'extra_deps_libgl = \[\]' "$glx_meson"; then
+    echo "ERROR: unexpected Mesa 21.1.8 GLX Meson layout" >&2
+    return 1
+  fi
+  sed -i 's/^extra_deps_libgl = \[\]$/extra_deps_libgl = [dep_xxf86vm]/' "$glx_meson"
 }
