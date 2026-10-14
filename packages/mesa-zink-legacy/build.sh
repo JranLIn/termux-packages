@@ -36,6 +36,15 @@ termux_step_pre_configure() {
     return 1
   fi
   sed -i 's/^if with_dri2$/if with_dri2 or (with_dri and with_platform_x11)/' "$egl_meson"
+  # The Zink DRI target exports galliumdrm_driver_api/extensions.
+  # Their implementations live in frontends/dri/dri2.c, excluded when
+  # with_dri2=false on Android. Compile the matching frontend too.
+  local dri_frontend_meson="$TERMUX_PKG_SRCDIR/src/gallium/frontends/dri/meson.build"
+  if ! grep -qx 'if with_dri2' "$dri_frontend_meson"; then
+    echo "ERROR: unexpected Mesa 21.1.8 Gallium DRI frontend layout" >&2
+    return 1
+  fi
+  sed -i 's/^if with_dri2$/if with_dri2 or (with_dri and with_platform_x11)/' "$dri_frontend_meson"
 
   # The GLX code uses XF86VidModeQueryVersion/GetModeLine but its final
   # libGL link omits libXxf86vm when building with the Android toolchain.
