@@ -1,0 +1,55 @@
+name: Mesa 21.1.8 Zink headless aarch64
+on:
+  workflow_dispatch:
+  push:
+    branches: [mesa-21.1.8-zink]
+    paths:
+      - 'packages/mesa-zink-legacy-headless/**'
+      - '.github/workflows/mesa-21.1.8-zink-headless.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Docker
+        run: docker version
+      - name: Build isolated Zink and softpipe package
+        run: |
+          ./scripts/run-docker.sh ./build-package.sh -I -C -a aarch64 mesa-zink-legacy-headless
+      - name: Verify Zink and swrast DRI entrypoints
+        run: |
+          set -euo pipefail
+          pkg="$(find output -maxdepth 1 -name 'mesa-zink-legacy-headless_*_aarch64.deb' -print -quit)"
+          test -n "$pkg"
+          mkdir -p verify/root
+          dpkg-deb -x "$pkg" verify/root
+          dri="$(find verify/root -name 'zink_dri.so' -print -quit)"
+          swrast="$(find verify/root -name 'swrast_dri.so' -print -quit)"
+          egl="$(find verify/root -name 'libEGL.so' -print -quit)"
+          test -n "$dri" && test -f "$dri"
+          test -n "$swrast" && test -f "$swrast"
+          test -n "$egl" && test -f "$egl"
+          readelf -h "$dri" | grep -q 'AArch64'
+          readelf --dyn-syms -W "$dri" | grep -q '__driDriverGetExtensions_zink'
+          readelf --dyn-syms -W "$swrast" | grep -q '__driDriverGetExtensions_swrast'
+          echo "Both Zink and swrast DRI entrypoints are present."
+          ls -lh "$dri" "$swrast" "$egl"
+          dpkg-deb -f "$pkg" Package Version Architecture
+      - name: Collect Debian package
+        if: always()
+        run: |
+          mkdir -p debs
+          find output -maxdepth 1 -type f -name 'mesa-zink-legacy-headless_*_aarch64.deb' -print -exec cp -v {} debs/ \; 2>/dev/null || true
+          find debs -maxdepth 1 -type f -name '*.deb' -print -exec sha256sum {} \;
+      - name: Upload headless test package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesa-21.1.8-zink-headless-aarch64
+          path: debs/*.deb
+          if-no-files-found: warn
