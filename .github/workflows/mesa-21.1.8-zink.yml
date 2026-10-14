@@ -1,0 +1,27 @@
+name: Mesa 21.1.8 Zink aarch64
+on:
+  workflow_dispatch:
+  push:
+    branches: [mesa-21.1.8-zink]
+    paths:
+      - 'packages/mesa-zink-legacy/**'
+      - '.github/workflows/mesa-21.1.8-zink.yml'
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build experimental Termux aarch64 deb
+        run: |
+          ./build-package.sh -a aarch64 -I mesa-zink-legacy
+      - name: Inspect packages
+        if: always()
+        run: |
+          find debs -type f -name '*.deb' -print 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mesa-21.1.8-zink-aarch64
+          path: debs/**/*.deb
+          if-no-files-found: warn
