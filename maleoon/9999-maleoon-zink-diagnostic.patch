@@ -87,3 +87,19 @@
     zink_destroy_screen(&screen->base);
     return NULL;
  }
+--- a/src/gallium/drivers/zink/zink_device_info.py
++++ b/src/gallium/drivers/zink/zink_device_info.py
+@@ -495,2 +495,3 @@
+ #include "zink_device_info.h"
+ #include "zink_screen.h"
++#include <stdio.h>
+@@ -787,6 +788,9 @@
+          } else {
+          %endif
+             debug_printf("ZINK: ${ext.name} required!\\n");
++            fprintf(stderr,
++                    "[maleoon-zink-devinfo] missing required extension: ${ext.name}; vk_version=0x%x\\n",
++                    (unsigned)screen->vk_version);
+             goto fail;
+       %endif
+          }
