@@ -22,9 +22,11 @@ jobs:
           echo "JDK path: $JAVA_HOME"
           test -x "$JAVA_HOME/bin/java"
           grep -R -n 'java-17-openjdk-amd64' scripts || true
-          JAVA_HOME="$JAVA_HOME" ./scripts/setup-android-sdk.sh
+          export TERMUX_JAVA_HOME="$JAVA_HOME"
+          ./scripts/setup-android-sdk.sh
       - name: Build experimental Termux aarch64 deb
         run: |
+          export TERMUX_JAVA_HOME="$JAVA_HOME"
           ./build-package.sh -a aarch64 -I mesa-zink-legacy
       - name: Inspect packages
         if: always()
