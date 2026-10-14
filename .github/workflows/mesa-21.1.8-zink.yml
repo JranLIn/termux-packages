@@ -12,6 +12,9 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      - name: Install Android SDK and NDK prerequisites
+        run: |
+          ./scripts/setup-android-sdk.sh
       - name: Build experimental Termux aarch64 deb
         run: |
           ./build-package.sh -a aarch64 -I mesa-zink-legacy
