@@ -6,35 +6,33 @@ on:
     paths:
       - 'packages/mesa-zink-legacy/**'
       - '.github/workflows/mesa-21.1.8-zink.yml'
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-      - name: Configure JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Install Android SDK and NDK prerequisites
+      - name: Check Docker
+        run: docker version
+      - name: Build Termux aarch64 package in official Docker image
         run: |
-          echo "JDK path: $JAVA_HOME"
-          test -x "$JAVA_HOME/bin/java"
-          grep -R -n 'java-17-openjdk-amd64' scripts || true
-          export TERMUX_JAVA_HOME="$JAVA_HOME"
-          ./scripts/setup-android-sdk.sh
-      - name: Build experimental Termux aarch64 deb
-        run: |
-          export TERMUX_JAVA_HOME="$JAVA_HOME"
-          ./build-package.sh -a aarch64 -I mesa-zink-legacy
-      - name: Inspect packages
+          ./scripts/run-docker.sh ./build-package.sh -I -C -a aarch64 mesa-zink-legacy
+      - name: Collect Debian packages
         if: always()
         run: |
-          find debs -type f -name '*.deb' -print 2>/dev/null || true
-      - uses: actions/upload-artifact@v4
+          mkdir -p debs
+          if [ -d output ]; then
+            find output -type f -name '*_aarch64.deb' -print -exec cp -v {} debs/ \;
+          fi
+          find debs -maxdepth 1 -type f -name '*.deb' -print -exec sha256sum {} \;
+      - name: Upload aarch64 Debian packages
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: mesa-21.1.8-zink-aarch64
-          path: debs/**/*.deb
+          path: debs/*.deb
           if-no-files-found: warn
