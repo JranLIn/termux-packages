@@ -22,7 +22,6 @@ TERMUX_PKG_EXTRA_CONFIGURE_ARGS="
 -Dshared-glapi=enabled
 -Dshader-cache=enabled
 -Dglvnd=false
--Dbuildtype=release
 "
 termux_step_pre_configure() {
   CPPFLAGS+=" -D__USE_GNU"
