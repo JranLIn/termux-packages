@@ -45,6 +45,42 @@ termux_step_pre_configure() {
     return 1
   fi
   sed -i 's/^if with_dri2$/if with_dri2 or (with_dri and with_platform_x11)/' "$dri_frontend_meson"
+  # dri2.c contains an optional kms_swrast code path guarded only by
+  # GALLIUM_SOFTPIPE. Android has no PIPE_LOADER_KMS, so leave this
+  # unsupported entrypoint compiled as a NULL-returning stub.
+  local dri2_source="$TERMUX_PKG_SRCDIR/src/gallium/frontends/dri/dri2.c"
+  if ! grep -q '^#if defined(GALLIUM_SOFTPIPE)
+
+  # The GLX code uses XF86VidModeQueryVersion/GetModeLine but its final
+  # libGL link omits libXxf86vm when building with the Android toolchain.
+  local glx_meson="$TERMUX_PKG_SRCDIR/src/glx/meson.build"
+  if ! grep -qx 'extra_deps_libgl = \[\]' "$glx_meson"; then
+    echo "ERROR: unexpected Mesa 21.1.8 GLX Meson layout" >&2
+    return 1
+  fi
+  sed -i "s/^extra_deps_libgl = \[\]$/extra_deps_libgl = [dependency('xxf86vm')]/" "$glx_meson"
+
+  # Mesa 21.1.x DRI version script exports AMD/Nouveau/Freedreno/LLVM
+  # symbols even in a Zink-only build. Android LLD rejects undefined
+  # entries, so drop only the unused non-Zink exports.
+  local dri_sym="$TERMUX_PKG_SRCDIR/src/gallium/targets/dri/dri.sym"
+  if [ ! -f "$dri_sym" ] || ! grep -q '__driDriverGetExtensions' "$dri_sym"; then
+    echo "ERROR: missing expected Mesa 21.1.8 DRI export script" >&2
+    return 1
+  fi
+  sed -i \
+    -e '/^[[:space:]]*nouveau_drm_screen_create;[[:space:]]*$/d' \
+    -e '/^[[:space:]]*radeon_drm_winsys_create;[[:space:]]*$/d' \
+    -e '/^[[:space:]]*amdgpu_winsys_create;[[:space:]]*$/d' \
+    -e '/^[[:space:]]*fd_drm_screen_create;[[:space:]]*$/d' \
+    -e '/^[[:space:]]*ac_init_shared_llvm_once;[[:space:]]*$/d' \
+    "$dri_sym"
+}
+ "$dri2_source"; then
+    echo "ERROR: unexpected Mesa 21.1.8 KMS swrast guard" >&2
+    return 1
+  fi
+  sed -i 's/^#if defined(GALLIUM_SOFTPIPE)$/#if defined(GALLIUM_SOFTPIPE) \&\& defined(HAVE_PIPE_LOADER_KMS)/' "$dri2_source"
 
   # The GLX code uses XF86VidModeQueryVersion/GetModeLine but its final
   # libGL link omits libXxf86vm when building with the Android toolchain.
