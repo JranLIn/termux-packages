@@ -1,0 +1,46 @@
+name: Maleoon Mesa 26.1.8 Zink legacy diagnostics
+on:
+  push:
+    branches: [maleoon-zink-mesa-26.1.8]
+    paths:
+      - ".github/workflows/maleoon-mesa-2618.yml"
+      - "maleoon/**"
+      - "packages/mesa/build.sh"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mesa-2618-aarch64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned Mesa 26.1.8 source
+        run: |
+          set -euo pipefail
+          grep -F 'TERMUX_PKG_VERSION="26.1.8"' packages/mesa/build.sh
+          grep -F 'b320f65874fd9653ac6c0bd1616605387344e1247411a50c797b5f3fb9dc0b55' packages/mesa/build.sh
+      - name: Initialize official Termux Docker toolchain
+        run: ./scripts/run-docker.sh true
+      - name: Free runner space
+        env:
+          CI: "true"
+        run: ./scripts/free-space.sh
+      - name: Build Mesa 26.1.8 diagnostic aarch64
+        run: |
+          set -euo pipefail
+          ./scripts/run-docker.sh ./build-package.sh -f -I -a aarch64 mesa 2>&1 | tee mesa-2618-build.log
+      - name: Verify aarch64 package
+        run: |
+          find output -type f -name '*mesa*.deb' -print
+          test -n "$(find output -type f -name 'mesa_26.1.8_aarch64.deb' -print -quit)"
+      - name: Upload Mesa 26.1.8 artifact and logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maleoon-mesa-2618-diagnostic-aarch64
+          path: |
+            output/**/*.deb
+            output/*.deb
+            mesa-2618-build.log
+          if-no-files-found: warn
