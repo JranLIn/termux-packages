@@ -1,0 +1,45 @@
+name: Maleoon Mesa 26.2.4 Zink diagnostics
+on:
+  push:
+    branches: [maleoon-zink-diagnostics]
+    paths:
+      - ".github/workflows/maleoon-mesa-debug.yml"
+      - "maleoon/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mesa-aarch64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage diagnostic Zink patch
+        run: |
+          set -euo pipefail
+          python3 maleoon/prepare.py
+          test -f packages/mesa/9999-maleoon-zink-diagnostic.patch
+      - name: Initialize Termux Docker toolchain
+        run: ./scripts/run-docker.sh true
+      - name: Free unused runner disk
+        env:
+          CI: "true"
+        run: ./scripts/free-space.sh
+      - name: Build Mesa for aarch64
+        run: |
+          set -euo pipefail
+          ./scripts/run-docker.sh ./build-package.sh -f -I -a aarch64 mesa 2>&1 | tee mesa-build.log
+      - name: Check built diagnostic package
+        run: |
+          find output -type f -name '*mesa*.deb' -print
+          test -n "$(find output -type f -name 'mesa_*_aarch64.deb' -print -quit)"
+      - name: Upload build logs and packages
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maleoon-mesa-diagnostic-aarch64
+          path: |
+            output/**/*.deb
+            output/*.deb
+            mesa-build.log
+          if-no-files-found: warn
