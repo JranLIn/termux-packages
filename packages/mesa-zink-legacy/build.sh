@@ -45,4 +45,20 @@ termux_step_pre_configure() {
     return 1
   fi
   sed -i "s/^extra_deps_libgl = \[\]$/extra_deps_libgl = [dependency('xxf86vm')]/" "$glx_meson"
+
+  # Mesa 21.1.x DRI version script exports AMD/Nouveau/Freedreno/LLVM
+  # symbols even in a Zink-only build. Android LLD rejects undefined
+  # entries, so drop only the unused non-Zink exports.
+  local dri_sym="$TERMUX_PKG_SRCDIR/src/gallium/targets/dri/dri.sym"
+  if [ ! -f "$dri_sym" ] || ! grep -q '__driDriverGetExtensions' "$dri_sym"; then
+    echo "ERROR: missing expected Mesa 21.1.8 DRI export script" >&2
+    return 1
+  fi
+  sed -i \
+    -e '/^[[:space:]]*nouveau_drm_screen_create;[[:space:]]*$/d' \
+    -e '/^[[:space:]]*radeon_drm_winsys_create;[[:space:]]*$/d' \
+    -e '/^[[:space:]]*amdgpu_winsys_create;[[:space:]]*$/d' \
+    -e '/^[[:space:]]*fd_drm_screen_create;[[:space:]]*$/d' \
+    -e '/^[[:space:]]*ac_init_shared_llvm_once;[[:space:]]*$/d' \
+    "$dri_sym"
 }
